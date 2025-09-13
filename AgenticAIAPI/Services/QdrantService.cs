@@ -1,6 +1,7 @@
 ﻿using Microsoft.OpenApi.Services;
 
 using System.Text.Json;
+using SearchResult = AgenticAIAPI.Models.SearchResult;
 
 namespace AgenticAIAPI.Services
 {
@@ -150,7 +151,7 @@ namespace AgenticAIAPI.Services
             return payloads;
         }
 
-    public async Task<List<AgenticAIAPI.Models.SearchResult>> SearchPointsWithScoresAsync(string collectionName, List<float> queryVector, int topK = 3)
+    public async Task<List<SearchResult>> SearchPointsWithScoresAsync(string collectionName, List<float> queryVector, int topK = 3)
     {
         var searchPayload = new
         {

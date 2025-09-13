@@ -1,4 +1,5 @@
-﻿using AgenticAIAPI.Services;
+﻿using AgenticAIAPI.Models;
+using AgenticAIAPI.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
@@ -225,32 +226,6 @@ namespace AgenticAIAPI.Controllers
                 return "All chunks already exist in Qdrant. Document appears to be fully uploaded.";
             return $"Partial match: {foundCount}/{totalCount} chunks found in Qdrant.";
         }
-
-        // Response DTOs
-        public class ValidationResponse
-        {
-            public int ChunkCount { get; set; }
-            public int FoundInQdrant { get; set; }
-            public bool ExistsInQdrant { get; set; }
-            public List<ChunkValidationResult> ValidationResults { get; set; } = new();
-            public string Message { get; set; } = string.Empty;
-            public CollectionInfo? CollectionInfo { get; set; }
-        }
-
-        public class ChunkValidationResult
-        {
-            public string Chunk { get; set; } = string.Empty;
-            public int ChunkIndex { get; set; }
-            public bool ExistsInQdrant { get; set; }
-            public double? SimilarityScore { get; set; }
-        }
-
-        public class CollectionInfo
-        {
-            public string Name { get; set; } = string.Empty;
-            public int TotalStoredChunks { get; set; }
-        }
-
 
     }
 }
