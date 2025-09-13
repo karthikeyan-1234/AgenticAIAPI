@@ -45,7 +45,7 @@ namespace AgenticAIAPI.Services
             }
         }
 
-    public async Task UpsertPointsAsync(string collectionName, List<string> chunks, List<List<float>> embeddings)
+        public async Task UpsertPointsAsync(string collectionName, List<string> chunks, List<List<float>> embeddings)
     {
         if (chunks.Count != embeddings.Count)
             throw new ArgumentException("Chunks and embeddings count must match.");
@@ -96,7 +96,6 @@ namespace AgenticAIAPI.Services
         }
     }
 
-
         public async Task<List<string>> SearchPointsAsync(string collectionName, List<float> queryVector, int topK = 3)
         {
             var searchPayload = new
@@ -127,6 +126,33 @@ namespace AgenticAIAPI.Services
             return matchingTexts;
         }
 
+        public async Task<List<SearchResult>> SearchAcrossCollectionsAsync(string? collectionName, List<float> queryEmbedding, int topKPerCollection = 5)
+        {
+            if (!string.IsNullOrWhiteSpace(collectionName))
+            {
+                // Search single specific collection
+                return await SearchPointsWithScoresAsync(collectionName.Trim().ToLower(), queryEmbedding, topKPerCollection);
+            }
+    
+            // Search all collections
+            var allCollections = await ListCollectionsAsync();
+            var searchTasks = allCollections.Select(c => SearchPointsWithScoresAsync(c, queryEmbedding, topKPerCollection));
+            var resultsPerCollection = await Task.WhenAll(searchTasks);
+    
+            // Flatten and combine all results
+            var allResults = resultsPerCollection.SelectMany(r => r).ToList();
+
+            // Apply stricter min score filtering here for extreme accuracy
+            double minScoreThreshold = 0.4; // Adjust as needed for high precision
+            var filteredResults = allResults.Where(r => r.Score >= minScoreThreshold).ToList();
+
+            // Optionally take top N overall (e.g. 10) results for context construction
+            var topResults = filteredResults.OrderByDescending(r => r.Score).Take(10).ToList();
+
+            return topResults;
+        }
+
+
         public async Task<List<string>> GetAllPayloadTextsAsync(string collectionName)
         {
             // This uses point scrolling; adjust limit if needed
@@ -151,7 +177,7 @@ namespace AgenticAIAPI.Services
             return payloads;
         }
 
-    public async Task<List<SearchResult>> SearchPointsWithScoresAsync(string collectionName, List<float> queryVector, int topK = 3)
+        public async Task<List<SearchResult>> SearchPointsWithScoresAsync(string collectionName, List<float> queryVector, int topK = 3)
     {
         var searchPayload = new
         {
@@ -219,7 +245,41 @@ namespace AgenticAIAPI.Services
         return results.OrderByDescending(r => r.Score).ToList();
     }
 
+        public async Task DeleteCollectionAsync(string collectionName)
+        {
+            var response = await _httpClient.DeleteAsync($"{_baseUrl}/collections/{collectionName}");
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Failed to delete collection {collectionName}: {response.StatusCode} - {content}");
+                throw new Exception($"Failed to delete collection {collectionName}: {response.StatusCode} - {content}");
+            }
+        }
 
+        //List all collections in Qdrant
+        public async Task<List<string>> ListCollectionsAsync()
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/collections");
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            var jsonDocument = JsonDocument.Parse(content);
+            var collections = new List<string>();
+
+            if (jsonDocument.RootElement.TryGetProperty("result", out var resultElement) &&
+                resultElement.TryGetProperty("collections", out var collectionsElement))
+            {
+                foreach (var collection in collectionsElement.EnumerateArray())
+                {
+                    if (collection.TryGetProperty("name", out var nameElement))
+                    {
+                        collections.Add(nameElement.GetString()!);
+                    }
+                }
+            }
+
+            return collections;
+        }
 
     }
 }

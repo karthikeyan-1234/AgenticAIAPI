@@ -8,13 +8,13 @@ namespace AgenticAIAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class FileUploadController : ControllerBase
+    public class DataStoreController : ControllerBase
     {
         private readonly TextChunkingService _chunkingService;
         private readonly OllamaEmbeddingService _embeddingService;
         private readonly QdrantService _qdrantService;
 
-        public FileUploadController()
+        public DataStoreController()
         {
             _chunkingService = new TextChunkingService(500);
             _embeddingService = new OllamaEmbeddingService();
@@ -32,6 +32,8 @@ namespace AgenticAIAPI.Controllers
             if (!extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
                 return BadRequest("Only .txt files are allowed.");
 
+            var collectionName = file.FileName;
+
             string fileText;
             using (var reader = new StreamReader(file.OpenReadStream(), Encoding.UTF8))
             {
@@ -44,7 +46,6 @@ namespace AgenticAIAPI.Controllers
             if (embeddings == null || embeddings.Count == 0)
                 return BadRequest("Failed to generate embeddings.");
 
-            var collectionName = "documents";
             await _qdrantService.CreateCollectionIfNotExistsAsync(collectionName, embeddings.First().Count);
             await _qdrantService.UpsertPointsAsync(collectionName, chunks, embeddings);
 
@@ -79,7 +80,7 @@ namespace AgenticAIAPI.Controllers
                 // Normalize chunks for comparison
                 var normalizedChunks = chunks.Select(NormalizeText).ToHashSet();
         
-                const string collectionName = "documents";
+                string collectionName = file.FileName;
         
                 // Check if collection exists
                 var collectionExists = await CheckCollectionExistsAsync(collectionName);
@@ -140,6 +141,37 @@ namespace AgenticAIAPI.Controllers
                 return StatusCode(500, new { error = "An error occurred during validation", details = ex.Message });
             }
         }
+
+        [HttpDelete("deleteCollection/{collectionName}")]
+        public async Task<IActionResult> DeleteCollection(string collectionName)
+        {
+            if (string.IsNullOrWhiteSpace(collectionName))
+                return BadRequest("Collection name is required.");
+            try
+            {
+                await _qdrantService.DeleteCollectionAsync(collectionName);
+                return Ok(new { message = $"Collection '{collectionName}' deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = "Failed to delete collection", details = ex.Message });
+            }
+        }
+
+        [HttpGet("listCollections")]
+        public async Task<IActionResult> ListCollections()
+        {
+            try
+            {
+                var collections = await _qdrantService.ListCollectionsAsync();
+                return Ok(collections);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = "Failed to list collections", details = ex.Message });
+            }
+        }
+
 
         private IActionResult? ValidateFileInput(IFormFile file)
         {

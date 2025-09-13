@@ -18,7 +18,7 @@ public class ChatController : ControllerBase
     private readonly OllamaGenerationService _ollamaGenerationService;
     private readonly ILogger<ChatController> _logger;
     
-    private const string CollectionName = "documents";
+    private string CollectionName = "documents";
     private const int OptimalTopK = 4; // Sweet spot for most questions
     private const double OptimalMinScore = 0.25; // Lower threshold for better recall
 
@@ -57,8 +57,12 @@ public class ChatController : ControllerBase
             _logger.LogInformation("Chat question: '{Question}' - ID: {CorrelationId}", 
                 request.Message.Substring(0, Math.Min(50, request.Message.Length)), correlationId);
 
-            // Check if we have any documents
-            var hasDocuments = await CheckIfDocumentsExistAsync();
+                CollectionName = string.IsNullOrWhiteSpace(request.LookInFileName)
+                    ? "documents"
+                    : request.LookInFileName.Trim().ToLower();
+
+                // Check if we have any documents
+                var hasDocuments = await CheckIfDocumentsExistAsync();
             if (!hasDocuments)
             {
                 return Ok(new ChatResponse
@@ -136,6 +140,86 @@ public class ChatController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Chat error - ID: {CorrelationId}", correlationId);
+            return Ok(new ChatResponse
+            {
+                Reply = "I encountered an error while processing your question. Please try again.",
+                Success = false
+            });
+        }
+    }
+
+
+    [HttpPost("askEnhanced")]
+    public async Task<IActionResult> AskQuestionEnhanced([FromBody] ChatRequest request)
+    {
+        var correlationId = Guid.NewGuid().ToString()[..8];
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request?.Message))
+                return BadRequest(new ChatResponse { Reply = "Please provide a question.", Success = false });
+
+            if (request.Message.Length > 500)
+                return BadRequest(new ChatResponse { Reply = "Question is too long. Please keep it under 500 characters.", Success = false });
+
+            _logger.LogInformation("Enhanced chat question: '{Question}' - ID: {CorrelationId}", request.Message.Substring(0, Math.Min(50, request.Message.Length)), correlationId);
+
+            // Generate embedding
+            var queryEmbedding = await _embeddingService.GetEmbeddingAsync(request.Message);
+            if (queryEmbedding == null || !queryEmbedding.Any())
+            {
+                return Ok(new ChatResponse
+                {
+                    Reply = "I'm having trouble processing your question right now. Please try again in a moment.",
+                    Success = false
+                });
+            }
+
+            // Use the new multi-collection search method for relevant results
+            var relevantResults = await _qdrantService.SearchAcrossCollectionsAsync(request.LookInFileName, queryEmbedding, 10);
+
+            if (!relevantResults.Any())
+            {
+                return Ok(new ChatResponse
+                {
+                    Reply = "I couldn't find information relevant to your question in the uploaded documents.",
+                    Success = true,
+                    HasSources = false
+                });
+            }
+
+            var context = BuildChatContext(relevantResults, request.Message);
+            var answer = await _ollamaGenerationService.GenerateAnswerAsync(context);
+
+            if (string.IsNullOrWhiteSpace(answer))
+            {
+                return Ok(new ChatResponse
+                {
+                    Reply = "I'm experiencing technical difficulties generating a response. Please try again.",
+                    Success = false
+                });
+            }
+
+            var avgScore = relevantResults.Average(r => r.Score);
+            var confidence = CalculateSimpleConfidence(avgScore, relevantResults.Count);
+
+            var response = new ChatResponse
+            {
+                Reply = answer.Trim(),
+                Success = true,
+                HasSources = true,
+                Confidence = confidence,
+                SourceCount = relevantResults.Count
+            };
+
+            _logger.LogInformation("Enhanced chat response generated - ID: {CorrelationId}, Sources: {SourceCount}, Confidence: {Confidence}",
+                correlationId, relevantResults.Count, confidence);
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Enhanced chat error - ID: {CorrelationId}", correlationId);
             return Ok(new ChatResponse
             {
                 Reply = "I encountered an error while processing your question. Please try again.",

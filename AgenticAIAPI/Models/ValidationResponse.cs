@@ -1,4 +1,4 @@
-﻿using static AgenticAIAPI.Controllers.FileUploadController;
+﻿using static AgenticAIAPI.Controllers.DataStoreController;
 
 namespace AgenticAIAPI.Models
 {
