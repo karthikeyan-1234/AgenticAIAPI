@@ -338,37 +338,6 @@ namespace AgenticAIAPI.Controllers
             return text.Substring(0, maxLength - 3) + "...";
         }
 
-        private class ContextInfo
-        {
-            public string Prompt { get; set; } = string.Empty;
-            public int SourceCount { get; set; }
-        }
-    }
 
-    // Enhanced DTOs
-    public class QueryRequest
-    {
-        public string Question { get; set; } = string.Empty;
-        public int? TopK { get; set; }
-        public double? MinimumScore { get; set; }
     }
-
-    public class QueryResponse
-    {
-        public string Answer { get; set; } = string.Empty;
-        public List<SourceInfo> Sources { get; set; } = new();
-        public double Confidence { get; set; }
-        public string Message { get; set; } = string.Empty;
-        public string CorrelationId { get; set; } = string.Empty;
-        public int ProcessingTimeMs { get; set; }
-    }
-
-    public class SourceInfo
-    {
-        public string Text { get; set; } = string.Empty;
-        public double Score { get; set; }
-        public int Rank { get; set; }
-    }
-
- 
 }

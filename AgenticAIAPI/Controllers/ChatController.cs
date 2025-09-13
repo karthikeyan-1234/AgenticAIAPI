@@ -189,18 +189,4 @@ public class ChatController : ControllerBase
     }
 }
 
-// Simplified DTOs for chat interface
-public class ChatRequest
-{
-    public string Message { get; set; } = string.Empty;
-}
-
-public class ChatResponse
-{
-    public string Reply { get; set; } = string.Empty;
-    public bool Success { get; set; }
-    public bool HasSources { get; set; }
-    public double? Confidence { get; set; }
-    public int? SourceCount { get; set; }
-}
 }
