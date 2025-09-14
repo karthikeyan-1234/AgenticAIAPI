@@ -40,8 +40,7 @@ if (app.Environment.IsDevelopment())
     {
         // This line tells the UI where to find the generated JSON file.
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Agentic AI API V1");
-        // To make Swagger the default page when you run the app:
-        c.RoutePrefix = string.Empty; 
+
     });
 
     // REMOVED: app.MapOpenApi(); // This conflicts with UseSwagger/UseSwaggerUI
